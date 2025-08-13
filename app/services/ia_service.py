@@ -6,25 +6,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Inicializar cliente de OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-async def preguntar_a_openai(prompt, max_tokens=200, temperature=0.2):
-    """Función genérica para consultar OpenAI"""
+async def preguntar_a_openai(messages, max_tokens=200, temperature=0.2):
+    """Consulta genérica a OpenAI con historial de mensajes"""
     try:
         fecha_actual = datetime.now().strftime("%Y-%m-%d")
-        system_prompt = (
-            f"Eres un asistente de WhatsApp que ofrece los siguientes servicios: \n"
-            f"FACTURACIÓN y WHATSAPP (responder al usuario de forma humanizada).\n"
-            f"La fecha actual es {fecha_actual}.\n"
-            "Responde de forma breve y precisa."
-        )
+        system_prompt = {
+            "role": "system",
+            "content": (
+                f"Eres un asistente de WhatsApp que puede orquestar múltiples servicios:\n"
+                f"- FACTURACIÓN (consultar_facturas, descargar_documento)\n"
+                f"- WHATSAPP (responder al usuario de forma humanizada)\n"
+                f"La fecha actual es {fecha_actual}.\n"
+                "Siempre analiza el historial y decide el siguiente paso a ejecutar.\n"
+                "Responde siempre breve y precisa.\n"
+                "Si el siguiente paso es WHATSAPP, significa que ya tienes toda la información y puedes redactar la respuesta final."
+            )
+        }
+        all_messages = [system_prompt] + messages
         response = client.chat.completions.create(
-            model="gpt-4o",  # Rápido y barato para orquestar
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
+            model="gpt-4o",
+            messages=all_messages,
             max_tokens=max_tokens,
             temperature=temperature
         )
@@ -33,52 +36,70 @@ async def preguntar_a_openai(prompt, max_tokens=200, temperature=0.2):
         print(f"Error en OpenAI: {e}")
         return None
 
-async def clasificar_mensaje(texto_usuario):
-    """Determina si es una consulta normal o facturación"""
-    prompt = f"Solo contesta con 'WHATSAPP' o 'FACTURACION' para clasificar el siguiente mensaje del usuario: {texto_usuario}"
-    return await preguntar_a_openai(prompt, max_tokens=5)
 
-async def generar_instruccion_facturacion(texto_usuario):
-    """Genera JSON con instrucciones para llamar API de facturación"""
-    prompt = f"""
-    De acuerdo a lo que solicita el usuario: "{texto_usuario}".
-    Tienes las siguientes funciones de facturación de la API Facturama:
-    - consultar_facturas: Obtienes un JSON con los datos de factura/s, puedes filtrar con 1 o los 7 parámetros del siguiente ejemplo dependiendo si los ocupas en la consulta: 
-      'http://localhost:8080/api/cfdi?type=issued&folioStart=1&folioEnd=2&rfc=MIR191015553&dateStart=2025-07-31T11%3A59%3A17&dateEnd=2025-07-31T11%3A59%3A17&status=active'
-    - parametros:
-      type: issued/recived/payroll
-      folioStart: inicio de folios
-      folioEnd: final de folios
-      rfc: rfc del receptor de la factura a consultar
-      dateStart: fecha de inicio de la factura
-      dateEnd: fecha final de la factura
-      status: all/active/canceled/pending estado de la factura del CFDI 
-    - descargar_documento: Obtienes el tipo de archivo (pdf o xml) con el id de la factura todos los parametros son obligatorios:
-      'http://localhost:8080/api/cfdi/{{id}}/download?format=pdf&type=issued'
-    - parametros:
-      id: id de la factura
-      format: pdf/xml tipo de formato
-      type: issued/recived/payroll
-    Solo contesta con formato JSON:
-    - "funcion": "consultar_facturas" o "descargar_documento"
-    - "params": parámetros necesarios
+async def clasificar_siguiente_paso(historial):
     """
-    respuesta = await preguntar_a_openai(prompt, max_tokens=150)
-    # Limpia el bloque de código ```json ... ```
+    Dado el historial completo (usuario + resultados de funciones),
+    indica el siguiente servicio y función a ejecutar.
+    Formato esperado:
+    {
+      "servicio": "FACTURACION" | "GMAIL" | "WHATSAPP",
+      "funcion": "consultar_facturas" | "descargar_documento" | "enviar_correo" | "respuesta_final",
+      "params": { ... }
+    }
+    """
+    prompt = """
+    Analiza el historial del asistente y determina el siguiente paso.
+    Servicios posibles:
+    - FACTURACION:
+        consultar_facturas(params): Obtienes un JSON con los datos de factura/s, puedes filtrar con 1 o los varios parámetros
+            parametros:
+                type: issued/recived/payroll
+                folioStart: inicio de folios
+                folioEnd: final de folios
+                rfc: rfc del receptor de la factura a consultar
+                dateStart: fecha de inicio de la factura
+                dateEnd: fecha final de la factura
+                status: all/active/canceled/pending estado de la factura del CFDI
+        descargar_documento(params): Obtienes el tipo de archivo (pdf o xml) con el id de la factura todos los parametros son obligatorios
+            parametros:
+                id: id de la factura
+                format: pdf/xml tipo de formato
+                type: issued/recived/payroll
+    - WHATSAPP:
+        respuesta_final(params)
+
+    Devuelve SOLO un JSON con:
+    {
+      "servicio": "...",
+      "funcion": "...",
+      "params": { ... }
+    }
+
+    Importante:
+    - Usa FACTURACION si falta consultar o descargar facturas.
+    - Usa GMAIL si hay que enviar algo por correo.
+    - Usa WHATSAPP si ya tienes todo y debes responder al usuario.
+    """
+    messages = historial + [{"role": "user", "content": prompt}]
+    respuesta = await preguntar_a_openai(messages, max_tokens=200)
+
     if respuesta.startswith("```json"):
         respuesta = respuesta[len("```json"):].strip()
     if respuesta.endswith("```"):
         respuesta = respuesta[:-len("```")].strip()
+
     try:
         return json.loads(respuesta)
     except json.JSONDecodeError:
         return None
 
-async def generar_respuesta_final(texto_usuario, datos_factura):
-    """Genera la respuesta de WhatsApp con base en los datos obtenidos"""
-    prompt = f"""
-    El usuario preguntó: "{texto_usuario}".
-    El resultado fue: {datos_factura}.
-    Redacta una respuesta corta, amable y clara para enviar por WhatsApp.
+
+async def generar_respuesta_final(historial):
+    """Genera la respuesta de WhatsApp con base en el historial"""
+    prompt = """
+    Con base en el historial, redacta una respuesta corta, amable y clara
+    para enviar por WhatsApp al usuario. No repitas información técnica.
     """
-    return await preguntar_a_openai(prompt, max_tokens=100)
+    messages = historial + [{"role": "user", "content": prompt}]
+    return await preguntar_a_openai(messages, max_tokens=150)

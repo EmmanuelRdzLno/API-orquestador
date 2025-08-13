@@ -2,6 +2,7 @@ import os
 import requests
 from dotenv import load_dotenv
 import base64
+from tempfile import gettempdir
 
 load_dotenv()
 
@@ -26,8 +27,10 @@ def consultar_facturas(params: dict) -> dict:
     resp.raise_for_status()
     return resp.json()
 
-def descargar_documento(id: str, format: str = "pdf", type: str = "issued") -> dict:
-    # format: "pdf" o "xml"
+def descargar_documento(id: str, format: str = "pdf", type: str = "issued") -> tuple:
+    """
+    Descarga el documento de facturación y devuelve (bytes del archivo, nombre del archivo).
+    """
     url = f"{FACTURACION_API_URL}/{id}/download"
     auth = (FACTURACION_USER, FACTURACION_PASSWORD)
     params = {"format": format, "type": type}
@@ -35,8 +38,11 @@ def descargar_documento(id: str, format: str = "pdf", type: str = "issued") -> d
     resp = requests.get(url, params=params, auth=auth)
     resp.raise_for_status()
 
-    # La respuesta es el archivo binario, lo codificamos a base64
-    archivo_base64 = base64.b64encode(resp.content).decode('utf-8')
+    # Obtener nombre de archivo para guardar temporalmente
+    filename = f"{id}.{format}"
+    
+    # Retornar bytes y nombre para guardarlo donde se decida
+    return resp.content, filename
 
     return {
         "ContentEncoding": "base64",
