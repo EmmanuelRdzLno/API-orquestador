@@ -1,4 +1,4 @@
-astapi
+fastapi
 uvicorn[standard]
 requests
 redis
