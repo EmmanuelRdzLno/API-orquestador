@@ -36,6 +36,7 @@ async def preguntar_a_openai(messages, max_tokens=200, temperature=0.2):
         print(f"Error en OpenAI: {e}")
         return None
 
+async def consultar_prompt_facturacion()
 
 async def clasificar_siguiente_paso(historial):
     """
