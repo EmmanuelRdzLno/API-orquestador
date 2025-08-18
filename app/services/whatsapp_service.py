@@ -2,9 +2,11 @@ import os
 import uuid
 import json
 import base64
+import requests
 from app.services.facturacion_service import (
     consultar_facturas,
-    descargar_documento
+    descargar_documento,
+    crear_factura
 )
 
 from app.services.ia_service import (
@@ -89,6 +91,18 @@ async def procesar_mensaje_texto(x_from: str, texto_usuario: str):
                     "mensaje": f"Documento descargado: {file_name}",
                     "archivo": archivo_path
                 }
+            elif funcion == "crear_factura":
+                print(f"este es el json para generar factura: {json}")
+                #file_bytes, file_name = crear_factura(**json)
+                #unique_name = f"{uuid.uuid4()}_{file_name}"
+                #archivo_path = os.path.join(TEMP_FOLDER, unique_name)
+                #with open(archivo_path, "wb") as f:
+                #    f.write(file_bytes)
+
+                #resultado = {
+                #    "mensaje": f"Documento descargado: {file_name}",
+                #    "archivo": archivo_path
+                #} 
 
             else:
                 resultado = "Función de facturación no reconocida."
@@ -147,4 +161,24 @@ async def procesar_mensaje_texto(x_from: str, texto_usuario: str):
 
 async def procesar_archivo(x_from: str, filename: str, file_bytes: bytes):
     print(f"Archivo recibido de {x_from}: {filename} ({len(file_bytes)} bytes)")
-    return {"status": f"archivo {filename} recibido"}
+
+    # 1. Convertir a base64
+    file_base64 = base64.b64encode(file_bytes).decode('utf-8')
+
+    # 2. Definir URL del servicio Node.js
+    node_service_url = "http://localhost:3030/process-file"
+
+    try:
+        # 3. Enviar POST al servicio Node.js
+        response = requests.post(node_service_url, json={"base64": file_base64})
+        response.raise_for_status()  # Lanza error si el status != 200
+
+        # 4. Leer respuesta
+        data = response.json()
+        print("📄 Respuesta del servicio Node.js:")
+        print(data)
+
+        return data
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error al comunicar con el servicio Node.js: {e}")
+        return {"error": str(e)}

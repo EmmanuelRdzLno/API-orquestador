@@ -16,4 +16,5 @@ async def webhook_orquestador(
     else:
         file_bytes = await request.body()
         filename = x_filename or "archivo_desconocido"
-        return await procesar_archivo(x_from, filename, file_bytes)
+        texto_archivo = await procesar_archivo(x_from, filename, file_bytes)
+        return await procesar_mensaje_texto(x_from, texto_archivo)
