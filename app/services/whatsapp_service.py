@@ -166,7 +166,7 @@ async def procesar_archivo(x_from: str, filename: str, file_bytes: bytes):
     file_base64 = base64.b64encode(file_bytes).decode('utf-8')
 
     # 2. Definir URL del servicio Node.js
-    node_service_url = "http://localhost:3030/process-file"
+    node_service_url = "https://api-documentos-577166035685.us-central1.run.app/process-file"
 
     try:
         # 3. Enviar POST al servicio Node.js
