@@ -3,6 +3,7 @@ import requests
 from dotenv import load_dotenv
 import base64
 from tempfile import gettempdir
+import json
 
 load_dotenv()
 
@@ -14,6 +15,7 @@ def crear_factura(datos_factura: dict) -> dict:
     url = f"{FACTURACION_API_URL}"
     auth = (FACTURACION_USER, FACTURACION_PASSWORD)
     headers = {"Content-Type": "application/json"}
+    print("📤 Enviando a Facturama:", json.dumps(datos_factura, indent=2, ensure_ascii=False))
 
     resp = requests.post(url, json=datos_factura, headers=headers)
     resp.raise_for_status()
