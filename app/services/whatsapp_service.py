@@ -237,7 +237,7 @@ async def procesar_mensaje_texto(x_from: str, texto_usuario: str):
         resultado = None
         archivo_path = None
 
-        if servicio == "FACTURACION":
+        if servicio == "FACTURACION" or servicio == "FACTURACIÓN":
             if funcion == "consultar_facturas":
                 resultado = consultar_facturas(params)
 
