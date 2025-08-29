@@ -297,6 +297,7 @@ async def procesar_mensaje_texto(x_from: str, texto_usuario: str):
                         # Enviar mensaje de texto que acompaña al archivo, si existe
                         mensaje_texto = siguiente.get("params", {}).get("mensaje")
                         if mensaje_texto:
+                            print(f"💬 Respuesta al cliente: {mensaje_texto}")
                             enviar_respuesta_a_whatsapp(to=x_from, mensaje=mensaje_texto)
 
                         # Retornar confirmación
@@ -324,10 +325,12 @@ async def procesar_mensaje_texto(x_from: str, texto_usuario: str):
                 "assistant",
                 json.dumps({"mensaje": resultado.get("mensaje"), "archivo": archivo_path}, ensure_ascii=False)
             )
+            print(f"📑 Historial de redis: {obtener_historial(x_from)}")
         else:
             if not isinstance(resultado, str):
                 resultado = json.dumps(resultado, ensure_ascii=False)
             agregar_mensaje_historial(x_from, "assistant", resultado)
+            print(f"📑 Historial de redis: {obtener_historial(x_from)}")
 
         # Si el plan requiere varios pasos, este while continuará;
         # si ya no hay "siguiente paso", se romperá arriba y retornará.
@@ -351,9 +354,9 @@ async def procesar_archivo(x_from: str, filename: str, file_bytes: bytes):
         print(data)
 
         # Opcional: guardar en historial alguna referencia
-        agregar_mensaje_historial(x_from, "assistant", json.dumps({"archivo_procesado": filename, "resultado": data}, ensure_ascii=False))
+        agregar_mensaje_historial(x_from, "api-document", json.dumps({"archivo_procesado": filename, "resultado": data}, ensure_ascii=False))
         return data
     except requests.exceptions.RequestException as e:
         print(f"❌ Error al comunicar con el servicio Node.js: {e}")
-        agregar_mensaje_historial(x_from, "assistant", f"Error procesando archivo: {str(e)}")
+        agregar_mensaje_historial(x_from, "api-document", f"Error procesando archivo: {str(e)}")
         return {"error": str(e)}

@@ -18,9 +18,8 @@ async def preguntar_a_openai(messages, max_tokens, temperature):
                 f"Eres un asistente de WhatsApp que puede orquestar múltiples servicios:\n"
                 f"- FACTURACIÓN (consultar_facturas, descargar_documento, crear_factura)\n"
                 f"- WHATSAPP (responder al usuario de forma humanizada)\n"
-                f"- DOCUMENTO (procesar_archivo, generar_archivo)\n"
                 f"La fecha actual es {fecha_actual}.\n"
-                "Siempre analiza el historial y decide el siguiente paso a ejecutar.\n"
+                "Siempre analiza el historial y los roles (assistant, user, etc) para enteder el contexto y decide el siguiente paso a ejecutar.\n"
                 "Responde siempre breve y precisa.\n"
                 "Si el siguiente paso es WHATSAPP, significa que ya tienes toda la información y puedes redactar la respuesta final."
             )
@@ -80,7 +79,7 @@ async def clasificar_siguiente_paso(historial):
             servicio = (siguiente.get("servicio") or "").upper()
             funcion = siguiente.get("funcion", "")
 
-            if servicio == "FACTURACION":
+            if servicio == "FACTURACION" or servicio == "FACTURACIÓN":
                 if funcion == "consultar_facturas":
                     """
                     Cargar prompt de consultar facturas con datos especificos para que openai tenga mas claridad sobre la accion a ejecutar
@@ -108,7 +107,7 @@ async def clasificar_siguiente_paso(historial):
                     """
                     max_tokens = 150
                     temperature = 0.1
-                if funcion == "descargar_documentos":
+                if funcion == "descargar_documento":
                     """
                     Cargar prompt de descargar facturas con datos especificos para que openai tenga mas claridad sobre la accion a ejecutar
                     """
@@ -139,7 +138,7 @@ async def clasificar_siguiente_paso(historial):
                     Ejecuta la funcion con los paremtros necesarios para cumplir con este paso solicitado de acuerdo al historial del asistente.
                     Servicio que requieres:
                     - FACTURACION:
-                        crear_factura(params): Funcion para generar factura, IMPORTANTE: siempre los parametros obligatorios son los relacionados con el tipo de factura, los de Items, los de Taxes y los de Receiver.
+                        crear_factura(params): Funcion para generar factura, IMPORTANTE: siempre los parametros obligatorios son los relacionados con el tipo de factura, los de Items, los de Taxes y los de Receiver. Considera los datos del emisor: RFC=ROLE930613SC5, RAZÓN SOCIAL= EMMANUEL DE JESUS RODRIGUEZ LUEVANO, CODIGO POSTAL=20160, REGIMEN FISCAL=RESICO.
                             ejemplo de parametros:
                                 {
                                     "NameId": 1,
@@ -1773,7 +1772,8 @@ async def clasificar_siguiente_paso(historial):
                                     "PaymentBankName": "sample string 16",
                                     "IdTaxEntityBankAccounts": "sample string 17"
                                 }
-                            ejemplo de factura real:
+                            
+                            El siguiente es un ejemplo de factura real, tomala como base para generar la factura:
                                 {
                                     "CfdiType": "I",
                                     "ExpeditionPlace": "20160",
